@@ -10,7 +10,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 sys.path.append(os.path.dirname(BASE_DIR))
 import provider
-import pointnet_part_seg as model
+import part_seg.pointnet_part_seg as model
 
 # DEFAULT SETTINGS
 parser = argparse.ArgumentParser()

@@ -12,7 +12,7 @@ sys.path.append(BASE_DIR)
 sys.path.append(os.path.join(BASE_DIR, 'models'))
 sys.path.append(os.path.join(BASE_DIR, 'utils'))
 import provider
-import pc_util
+import utils.pc_util as pc_util
 
 
 parser = argparse.ArgumentParser()

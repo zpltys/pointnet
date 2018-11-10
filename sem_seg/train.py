@@ -13,8 +13,8 @@ sys.path.append(BASE_DIR)
 sys.path.append(ROOT_DIR)
 sys.path.append(os.path.join(ROOT_DIR, 'utils'))
 import provider
-import tf_util
-from model import *
+import utils.tf_util as tf_util
+from sem_seg.model import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=int, default=0, help='GPU to use [default: GPU 0]')

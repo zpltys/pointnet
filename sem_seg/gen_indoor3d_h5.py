@@ -1,12 +1,10 @@
 import os
 import numpy as np
-import sys
+import utils.data_prep_util as data_prep_util
+import sem_seg.indoor3d_util as indoor3d_util
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
-sys.path.append(BASE_DIR)
-sys.path.append(os.path.join(ROOT_DIR, 'utils'))
-import data_prep_util
-import indoor3d_util
 
 # Constants
 data_dir = os.path.join(ROOT_DIR, 'data')

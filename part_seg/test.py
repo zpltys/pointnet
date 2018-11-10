@@ -8,7 +8,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 sys.path.append(os.path.dirname(BASE_DIR))
 import provider
-import pointnet_part_seg as model
+import part_seg.pointnet_part_seg as model
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_path', default='train_results/trained_models/epoch_190.ckpt', help='Model checkpoint path')

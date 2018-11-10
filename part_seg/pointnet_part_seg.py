@@ -6,7 +6,7 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(BASE_DIR))
 sys.path.append(os.path.join(BASE_DIR, '../utils'))
-import tf_util
+import utils.tf_util as tf_util
 
 
 def get_transform_K(inputs, is_training, bn_decay=None, K = 3):
