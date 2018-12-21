@@ -12,22 +12,19 @@ sys.path.append(os.path.dirname(BASE_DIR))
 import provider
 import pointnet_part_seg as model
 
-train_data_path='/dfsdata/zhangyao_data/ln/train/training/pts/'
-train_ctg_path='/dfsdata/zhangyao_data/ln/train/training/category/'
+train_data_path='D:\\downloads\\chrome\\train_fix\\training\\pts\\'
+train_ctg_path='D:\\downloads\\chrome\\train_fix\\training\\category\\'
 # DEFAULT SETTINGS
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=int, default=1, help='GPU to use [default: GPU 0]')
-parser.add_argument('--batch', type=int, default=1, help='Batch Size during trainin[default: 10]')
+parser.add_argument('--batch', type=int, default=1, help='Batch Size during trainin[default: 1]')
 parser.add_argument('--epoch', type=int, default=200, help='Epoch to run [default: 200]')
 parser.add_argument('--point_num', type=int, default=60000, help='Point Number [256/512/1024/2048]')
 parser.add_argument('--output_dir', type=str, default='train_results', help='Directory that stores all training logs and trained models')
 parser.add_argument('--wd', type=float, default=0, help='Weight Decay [Default: 0.0]')
 FLAGS = parser.parse_args()
 
-# hdf5_data_dir = os.path.join(BASE_DIR, './hdf5_data')
-# data_dir='/dfsdata/zhangyao_data/ln/train/'
-# MAIN SCRIPT
 
 # point_num = FLAGS.point_num
 point_num=60000
