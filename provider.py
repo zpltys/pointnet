@@ -1,20 +1,22 @@
 import os
 import sys
 import numpy as np
-import h5py
+#import h5py
+import pandas as pd
+import random
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 
 # Download dataset for point cloud classification
-DATA_DIR = os.path.join(BASE_DIR, 'data')
-if not os.path.exists(DATA_DIR):
-    os.mkdir(DATA_DIR)
-if not os.path.exists(os.path.join(DATA_DIR, 'modelnet40_ply_hdf5_2048')):
-    www = 'https://shapenet.cs.stanford.edu/media/modelnet40_ply_hdf5_2048.zip'
-    zipfile = os.path.basename(www)
-    os.system('wget %s; unzip %s' % (www, zipfile))
-    os.system('mv %s %s' % (zipfile[:-4], DATA_DIR))
-    os.system('rm %s' % (zipfile))
+#DATA_DIR = os.path.join(BASE_DIR, 'data')
+#if not os.path.exists(DATA_DIR):
+#    os.mkdir(DATA_DIR)
+#if not os.path.exists(os.path.join(DATA_DIR, 'modelnet40_ply_hdf5_2048')):
+ #   www = 'https://shapenet.cs.stanford.edu/media/modelnet40_ply_hdf5_2048.zip'
+  #  zipfile = os.path.basename(www)
+   # os.system('wget %s; unzip %s' % (www, zipfile))
+    #os.system('mv %s %s' % (zipfile[:-4], DATA_DIR))
+   # os.system('rm %s' % (zipfile))
 
 
 def shuffle_data(data, labels):
@@ -27,7 +29,7 @@ def shuffle_data(data, labels):
     """
     idx = np.arange(len(labels))
     np.random.shuffle(idx)
-    return data[idx, ...], labels[idx], idx
+    return data[idx,idx,idx], labels[idx], idx
 
 
 def rotate_point_cloud(batch_data):
@@ -96,13 +98,158 @@ def load_h5(h5_filename):
 def loadDataFile(filename):
     return load_h5(filename)
 
-def load_h5_data_label_seg(h5_filename):
-    f = h5py.File(h5_filename)
-    data = f['data'][:]
-    label = f['label'][:]
-    seg = f['pid'][:]
-    return (data, label, seg)
+def filling_data(filename,batch_size):
+
+    label=np.zeros(batch_size)#only one category for each csv
+    # label=np.zeros((60000))
+    data=pd.read_csv(filename, encoding='cp936',header=None)
+
+    ctgname=filename.replace('pts','category')
+    ctg=pd.read_csv(ctgname, encoding='cp936',header=None)
 
 
-def loadDataFile_with_seg(filename):
-    return load_h5_data_label_seg(filename)
+    length_each_batch=60000//batch_size
+    data_total=np.zeros((batch_size,length_each_batch,3))
+    ctg_total=np.zeros((batch_size,length_each_batch))
+
+    var=0.001
+    #get noise
+    length=len(data)
+    is_same=(length==len(ctg))
+    if is_same==False:
+        return data_total,label,ctg_total,is_same
+
+    if length > 60000:
+        acc_list = random.sample(range(length), 60000)
+        for i in range(batch_size):
+            begid=i*length_each_batch
+            endid=(i+1)*length_each_batch
+            data_total[i,:,:]=data.loc[acc_list[begid:endid]]
+            tmp = np.zeros((length_each_batch, 1))
+            tmp = ctg.loc[acc_list[begid:endid]]
+            tmp = np.array(tmp)
+            tmp = tmp.reshape(1, -1)
+            ctg_total[i, :] = tmp
+            # ctg_total[i,:]
+
+
+        # total[i, :, :] = data.loc[acc_list]
+        # tmp = np.zeros((60000, 1))
+        # tmp = ctg.loc[acc_list]
+        # tmp = np.array(tmp)
+        # tmp = tmp.reshape(1, -1)
+        # ctg_total[i, :] = tmp
+
+    else:
+        noise=np.random.normal(0,var,[60000-length,3])
+
+        # random select node to filling with noise
+        insert_data_list=random.sample(range(length),(60000-length))
+        insert_data_list.sort()
+        acc_list=range(length_each_batch)
+        #insert_data
+        insert_data=np.array(data.loc[insert_data_list])
+        insert_data=insert_data+noise
+
+        #insert_data and output it
+        data=data.append(pd.DataFrame(insert_data))  ####!!!!!data=!!!!!!!!!!!
+        # data.to_csv(insert_file_path+'p/'+filename, mode='w', encoding='cp936', index=False, header=None)
+        # data=np.array(data)
+        # data2=np.zeros((1,60000,3))
+        # data2[0:1,:,:]=data
+
+
+        insert_data = np.array(ctg.loc[insert_data_list])
+        ctg=ctg.append(pd.DataFrame(insert_data))
+        data=np.array(data)
+        ctg=np.array(ctg)
+
+        for i in range(batch_size):
+            begid=i*length_each_batch
+            endid=(i+1)*length_each_batch
+            data_total[i,:,:]=data[begid:endid,:]
+            tmp = np.zeros((length_each_batch, 1))
+            tmp = ctg[begid:endid]
+            tmp = np.array(tmp)
+            tmp = tmp.reshape(1, -1)
+            ctg_total[i, :] = tmp
+
+    return (data_total, label, ctg_total,is_same)
+
+
+
+def loadDataFile_with_seg(filename,batch_size):
+    return filling_data(filename,batch_size)
+
+def loadDataFile_with_seg_batch(train_list,file_batch_size,batch_size):
+    new_batch_size=batch_size*file_batch_size
+    length_each_batch = 60000 // batch_size
+
+    data_total=np.zeros((new_batch_size,length_each_batch,3))
+    labels=np.zeros(new_batch_size)
+    ctg_total=np.zeros((new_batch_size,length_each_batch))
+    is_same=True
+    for i in range(file_batch_size):
+        filename=train_list[i]
+
+    # label=np.zeros((60000))
+        data = pd.read_csv(filename, encoding='cp936', header=None)
+
+        ctgname = filename.replace('pts', 'category')
+        ctg = pd.read_csv(ctgname, encoding='cp936', header=None)
+
+        #length_each_batch = 60000 // batch_size
+        # data_total = np.zeros((batch_size, length_each_batch, 3))
+        # ctg_total = np.zeros((batch_size, length_each_batch))
+
+        var = 0.001
+        # get noise
+        length = len(data)
+        is_same = (length == len(ctg))
+        if is_same == False:
+            return data_total, labels, ctg_total, is_same
+
+        if length > 60000:
+            acc_list = random.sample(range(length), 60000)
+            for j in range(batch_size):
+                cur_batch_id=i*batch_size+j
+                begid = j * length_each_batch
+                endid = (j + 1) * length_each_batch
+                data_total[cur_batch_id, :, :] = data.loc[acc_list[begid:endid]]
+                tmp = np.zeros((length_each_batch, 1))
+                tmp = ctg.loc[acc_list[begid:endid]]
+                tmp = np.array(tmp)
+                tmp = tmp.reshape(1, -1)
+                ctg_total[cur_batch_id, :] = tmp
+
+
+        else:
+            noise = np.random.normal(0, var, [60000 - length, 3])
+
+            # random select node to filling with noise
+            insert_data_list = random.sample(range(length), (60000 - length))
+            insert_data_list.sort()
+            acc_list = range(length_each_batch)
+            # insert_data
+            insert_data = np.array(data.loc[insert_data_list])
+            insert_data = insert_data + noise
+
+            data = data.append(pd.DataFrame(insert_data))  ####!!!!!data=!!!!!!!!!!!
+
+            insert_data = np.array(ctg.loc[insert_data_list])
+            ctg = ctg.append(pd.DataFrame(insert_data))
+            data = np.array(data)
+            ctg = np.array(ctg)
+
+            for j in range(batch_size):
+                cur_batch_id = i * batch_size + j
+                begid = j * length_each_batch
+                endid = (j + 1) * length_each_batch
+                data_total[cur_batch_id, :, :] = data[begid:endid, :]
+                tmp = np.zeros((length_each_batch, 1))
+                tmp = ctg[begid:endid]
+                tmp = np.array(tmp)
+                tmp = tmp.reshape(1, -1)
+                ctg_total[cur_batch_id, :] = tmp
+
+    return (data_total, labels, ctg_total, is_same)

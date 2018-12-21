@@ -23,7 +23,7 @@ from sys import byteorder as _byteorder
 
 
 try:
-    _range = range
+    _range = xrange
 except NameError:
     _range = range
 

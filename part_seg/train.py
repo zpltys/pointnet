@@ -10,40 +10,55 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 sys.path.append(os.path.dirname(BASE_DIR))
 import provider
-import part_seg.pointnet_part_seg as model
+import pointnet_part_seg as model
 
+train_data_path='/dfsdata/zhangyao_data/ln/train/training/pts/'
+train_ctg_path='/dfsdata/zhangyao_data/ln/train/training/category/'
 # DEFAULT SETTINGS
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=int, default=1, help='GPU to use [default: GPU 0]')
-parser.add_argument('--batch', type=int, default=32, help='Batch Size during training [default: 32]')
-parser.add_argument('--epoch', type=int, default=200, help='Epoch to run [default: 50]')
-parser.add_argument('--point_num', type=int, default=2048, help='Point Number [256/512/1024/2048]')
+parser.add_argument('--batch', type=int, default=1, help='Batch Size during trainin[default: 10]')
+parser.add_argument('--epoch', type=int, default=200, help='Epoch to run [default: 200]')
+parser.add_argument('--point_num', type=int, default=60000, help='Point Number [256/512/1024/2048]')
 parser.add_argument('--output_dir', type=str, default='train_results', help='Directory that stores all training logs and trained models')
 parser.add_argument('--wd', type=float, default=0, help='Weight Decay [Default: 0.0]')
 FLAGS = parser.parse_args()
 
-hdf5_data_dir = os.path.join(BASE_DIR, './hdf5_data')
-
+# hdf5_data_dir = os.path.join(BASE_DIR, './hdf5_data')
+# data_dir='/dfsdata/zhangyao_data/ln/train/'
 # MAIN SCRIPT
-point_num = FLAGS.point_num
-batch_size = FLAGS.batch
-output_dir = FLAGS.output_dir
 
+# point_num = FLAGS.point_num
+point_num=60000
+batch_size = FLAGS.batch
+file_batch_size=4 #
+# output_dir = FLAGS.output_dir
+
+output_dir='/dfsdata/zhangyao_data/ln/train_results/'
+#output_dir = '/dfsdata/zhangyao_data/ln/multi_batch/'
 if not os.path.exists(output_dir):
     os.mkdir(output_dir)
+#####!!!!
+# color_map_file = os.path.join(hdf5_data_dir, 'part_color_mapping.json')
+# color_map = json.load(open(color_map_file, 'r'))
 
-color_map_file = os.path.join(hdf5_data_dir, 'part_color_mapping.json')
-color_map = json.load(open(color_map_file, 'r'))
 
-all_obj_cats_file = os.path.join(hdf5_data_dir, 'all_object_categories.txt')
+#cats parameters for evaluation ,just for print ,not for calculation
+# all_obj_cats_file = os.path.join(hdf5_data_dir, 'all_object_categories.txt')
+all_obj_cats_file='/dfsdata/zhangyao_data/ln/code/train_list.txt'
 fin = open(all_obj_cats_file, 'r')
+
 lines = [line.rstrip() for line in fin.readlines()]
-all_obj_cats = [(line.split()[0], line.split()[1]) for line in lines]
+# all_obj_cats = [(line.split()[0], line.split()[1]) for line in lines]
+all_obj_cats =[(line, train_ctg_path+line.split('/')[-1]) for line in lines]
 fin.close()
 
-all_cats = json.load(open(os.path.join(hdf5_data_dir, 'overallid_to_catid_partid.json'), 'r'))
-NUM_CATEGORIES = 16
-NUM_PART_CATS = len(all_cats)
+
+#?????part num:each node   categores:each csv
+# all_cats = json.load(open(os.path.join(hdf5_data_dir, 'overallid_to_catid_partid.json'), 'r'))
+NUM_CATEGORIES = 1
+NUM_PART_CATS = 8
 
 print('#### Batch Size: {0}'.format(batch_size))
 print('#### Point Number: {0}'.format(point_num))
@@ -64,8 +79,11 @@ MOMENTUM = 0.9
 TRAINING_EPOCHES = FLAGS.epoch
 print('### Training epoch: {0}'.format(TRAINING_EPOCHES))
 
-TRAINING_FILE_LIST = os.path.join(hdf5_data_dir, 'train_hdf5_file_list.txt')
-TESTING_FILE_LIST = os.path.join(hdf5_data_dir, 'val_hdf5_file_list.txt')
+# TRAINING_FILE_LIST = os.path.join(hdf5_data_dir, 'train_hdf5_file_list.txt')
+# TESTING_FILE_LIST = os.path.join(hdf5_data_dir, 'val_hdf5_file_list.txt')
+
+TRAINING_FILE_LIST='/dfsdata/zhangyao_data/ln/code/train_list.txt'
+TESTING_FILE_LIST='/dfsdata/zhangyao_data/ln/code/eval_list.txt'
 
 MODEL_STORAGE_PATH = os.path.join(output_dir, 'trained_models')
 if not os.path.exists(MODEL_STORAGE_PATH):
@@ -83,17 +101,25 @@ def printout(flog, data):
 	print(data)
 	flog.write(data + '\n')
 
+def get_input_label_ph():
+    return
+def get_labels_ph():
+    return
+
 def placeholder_inputs():
-    pointclouds_ph = tf.placeholder(tf.float32, shape=(batch_size, point_num, 3))
-    input_label_ph = tf.placeholder(tf.float32, shape=(batch_size, NUM_CATEGORIES))
-    labels_ph = tf.placeholder(tf.int32, shape=(batch_size))
-    seg_ph = tf.placeholder(tf.int32, shape=(batch_size, point_num))
+    new_batch_size=batch_size*file_batch_size
+    pointclouds_ph = tf.placeholder(tf.float32, shape=(new_batch_size, point_num, 3))
+    #input
+    input_label_ph = tf.placeholder(tf.float32, shape=(new_batch_size, NUM_CATEGORIES))#onehot code of labels_ph
+    labels_ph = tf.placeholder(tf.int32, shape=(new_batch_size))
+    seg_ph = tf.placeholder(tf.int32, shape=(new_batch_size, point_num))
     return pointclouds_ph, input_label_ph, labels_ph, seg_ph
 
-def convert_label_to_one_hot(labels):
-    label_one_hot = np.zeros((labels.shape[0], NUM_CATEGORIES))
-    for idx in range(labels.shape[0]):
-        label_one_hot[idx, labels[idx]] = 1
+def convert_label_to_one_hot(labels,batch_size):
+    #    m=labels.shape[0]
+    label_one_hot = np.zeros((batch_size, NUM_CATEGORIES))
+    for idx in range(batch_size):
+        label_one_hot[idx,0] = 1
     return label_one_hot
 
 def train():
@@ -105,7 +131,7 @@ def train():
             batch = tf.Variable(0, trainable=False)
             learning_rate = tf.train.exponential_decay(
                             BASE_LEARNING_RATE,     # base learning rate
-                            batch * batch_size,     # global_var indicating the number of steps
+                            batch * batch_size*file_batch_size,     # global_var indicating the number of steps
                             DECAY_STEP,             # step size
                             DECAY_RATE,             # decay rate
                             staircase=True          # Stair-case or continuous decreasing
@@ -114,7 +140,7 @@ def train():
         
             bn_momentum = tf.train.exponential_decay(
                       BN_INIT_DECAY,
-                      batch*batch_size,
+                      batch*batch_size*file_batch_size,
                       BN_DECAY_DECAY_STEP,
                       BN_DECAY_DECAY_RATE,
                       staircase=True)
@@ -126,7 +152,7 @@ def train():
  
             labels_pred, seg_pred, end_points = model.get_model(pointclouds_ph, input_label_ph, \
                     is_training=is_training_ph, bn_decay=bn_decay, cat_num=NUM_CATEGORIES, \
-                    part_num=NUM_PART_CATS, batch_size=batch_size, num_point=point_num, weight_decay=FLAGS.wd)
+                    part_num=NUM_PART_CATS, batch_size=batch_size*file_batch_size, num_point=point_num, weight_decay=FLAGS.wd)
 
             # model.py defines both classification net and segmentation net, which share the common global feature extractor network.
             # In model.get_loss, we define the total loss to be weighted sum of the classification and segmentation losses.
@@ -186,7 +212,7 @@ def train():
         train_writer = tf.summary.FileWriter(SUMMARIES_FOLDER + '/train', sess.graph)
         test_writer = tf.summary.FileWriter(SUMMARIES_FOLDER + '/test')
 
-        train_file_list = provider.getDataFiles(TRAINING_FILE_LIST)
+        train_file_list = provider.getDataFiles(TRAINING_FILE_LIST)#get absolute path of each train csv
         num_train_file = len(train_file_list)
         test_file_list = provider.getDataFiles(TESTING_FILE_LIST)
         num_test_file = len(test_file_list)
@@ -201,18 +227,11 @@ def train():
         def train_one_epoch(train_file_idx, epoch_num):
             is_training = True
 
-            for i in range(num_train_file):
-                cur_train_filename = os.path.join(hdf5_data_dir, train_file_list[train_file_idx[i]])
-                printout(flog, 'Loading train file ' + cur_train_filename)
 
-                cur_data, cur_labels, cur_seg = provider.loadDataFile_with_seg(cur_train_filename)
-                cur_data, cur_labels, order = provider.shuffle_data(cur_data, np.squeeze(cur_labels))
-                cur_seg = cur_seg[order, ...]
-
-                cur_labels_one_hot = convert_label_to_one_hot(cur_labels)
-
-                num_data = len(cur_labels)
-                num_batch = num_data // batch_size
+            #
+            total_batch=num_train_file//file_batch_size
+            #
+            for cur_batch in range(total_batch):
 
                 total_loss = 0.0
                 total_label_loss = 0.0
@@ -220,35 +239,46 @@ def train():
                 total_label_acc = 0.0
                 total_seg_acc = 0.0
 
-                for j in range(num_batch):
-                    begidx = j * batch_size
-                    endidx = (j + 1) * batch_size
+                printout(flog, '\n Training epoch: %d/%d  batch:,%d/%d...' % (epoch_num,TRAINING_EPOCHES,cur_batch,total_batch ))
+                begid=int(cur_batch*file_batch_size)
+                # endid=int((cur_batch+1)*file_batch_size)
+                cur_train_list=[]
+                for j in range(file_batch_size):
+                    cur_train_list.append(train_file_list[train_file_idx[begid+j]])
 
-                    feed_dict = {
-                            pointclouds_ph: cur_data[begidx: endidx, ...], 
-                            labels_ph: cur_labels[begidx: endidx, ...], 
-                            input_label_ph: cur_labels_one_hot[begidx: endidx, ...], 
-                            seg_ph: cur_seg[begidx: endidx, ...],
-                            is_training_ph: is_training, 
-                            }
+                # cur_train_list=provider.shuffle_list(cur_train_list)
+                cur_data, cur_labels, cur_seg,is_same = provider.loadDataFile_with_seg_batch(cur_train_list,file_batch_size,batch_size)
+                #
+                if is_same==False:
+                    printout(flog, 'length pts is note same as category: ' + cur_train_list[0])
+                    continue
+                cur_labels_one_hot = convert_label_to_one_hot(cur_labels,batch_size*file_batch_size)
+                feed_dict = {
+                    pointclouds_ph: cur_data[:, :, :],
+                    labels_ph: cur_labels[:],
+                    input_label_ph: cur_labels_one_hot[:, :],
+                    seg_ph: cur_seg[:,:],
+                    is_training_ph: is_training,
+                }
 
-                    _, loss_val, label_loss_val, seg_loss_val, per_instance_label_loss_val, \
-                            per_instance_seg_loss_val, label_pred_val, seg_pred_val, pred_seg_res \
-                            = sess.run([train_op, loss, label_loss, seg_loss, per_instance_label_loss, \
-                            per_instance_seg_loss, labels_pred, seg_pred, per_instance_seg_pred_res], \
-                            feed_dict=feed_dict)
+                _, loss_val, label_loss_val, seg_loss_val, per_instance_label_loss_val, \
+                per_instance_seg_loss_val, label_pred_val, seg_pred_val, pred_seg_res \
+                    = sess.run([train_op, loss, label_loss, seg_loss, per_instance_label_loss, \
+                                per_instance_seg_loss, labels_pred, seg_pred, per_instance_seg_pred_res], \
+                               feed_dict=feed_dict)
 
-                    per_instance_part_acc = np.mean(pred_seg_res == cur_seg[begidx: endidx, ...], axis=1)
-                    average_part_acc = np.mean(per_instance_part_acc)
+                per_instance_part_acc = np.mean(pred_seg_res == cur_seg[:,:], axis=1)
+                average_part_acc = np.mean(per_instance_part_acc)
 
-                    total_loss += loss_val
-                    total_label_loss += label_loss_val
-                    total_seg_loss += seg_loss_val
-                    
-                    per_instance_label_pred = np.argmax(label_pred_val, axis=1)
-                    total_label_acc += np.mean(np.float32(per_instance_label_pred == cur_labels[begidx: endidx, ...]))
-                    total_seg_acc += average_part_acc
+                total_loss += loss_val
+                total_label_loss += label_loss_val
+                total_seg_loss += seg_loss_val
 
+                per_instance_label_pred = np.argmax(label_pred_val, axis=1)
+                total_label_acc += np.mean(np.float32(per_instance_label_pred == cur_labels[:]))
+                total_seg_acc += average_part_acc
+
+                num_batch=1
                 total_loss = total_loss * 1.0 / num_batch
                 total_label_loss = total_label_loss * 1.0 / num_batch
                 total_seg_loss = total_seg_loss * 1.0 / num_batch
@@ -256,21 +286,22 @@ def train():
                 total_seg_acc = total_seg_acc * 1.0 / num_batch
 
                 lr_sum, bn_decay_sum, batch_sum, train_loss_sum, train_label_acc_sum, \
-                        train_label_loss_sum, train_seg_loss_sum, train_seg_acc_sum = sess.run(\
-                        [lr_op, bn_decay_op, batch_op, total_train_loss_sum_op, label_train_acc_sum_op, \
-                        label_train_loss_sum_op, seg_train_loss_sum_op, seg_train_acc_sum_op], \
-                        feed_dict={total_training_loss_ph: total_loss, label_training_loss_ph: total_label_loss, \
-                        seg_training_loss_ph: total_seg_loss, label_training_acc_ph: total_label_acc, \
-                        seg_training_acc_ph: total_seg_acc})
+                train_label_loss_sum, train_seg_loss_sum, train_seg_acc_sum = sess.run( \
+                    [lr_op, bn_decay_op, batch_op, total_train_loss_sum_op, label_train_acc_sum_op, \
+                     label_train_loss_sum_op, seg_train_loss_sum_op, seg_train_acc_sum_op], \
+                    feed_dict={total_training_loss_ph: total_loss, label_training_loss_ph: total_label_loss, \
+                               seg_training_loss_ph: total_seg_loss, label_training_acc_ph: total_label_acc, \
+                               seg_training_acc_ph: total_seg_acc})
 
-                train_writer.add_summary(train_loss_sum, i + epoch_num * num_train_file)
-                train_writer.add_summary(train_label_loss_sum, i + epoch_num * num_train_file)
-                train_writer.add_summary(train_seg_loss_sum, i + epoch_num * num_train_file)
-                train_writer.add_summary(lr_sum, i + epoch_num * num_train_file)
-                train_writer.add_summary(bn_decay_sum, i + epoch_num * num_train_file)
-                train_writer.add_summary(train_label_acc_sum, i + epoch_num * num_train_file)
-                train_writer.add_summary(train_seg_acc_sum, i + epoch_num * num_train_file)
-                train_writer.add_summary(batch_sum, i + epoch_num * num_train_file)
+                step=epoch_num*total_batch+cur_batch
+                train_writer.add_summary(train_loss_sum, step)
+                train_writer.add_summary(train_label_loss_sum, step)
+                train_writer.add_summary(train_seg_loss_sum, step)
+                train_writer.add_summary(lr_sum, step)
+                train_writer.add_summary(bn_decay_sum, step)
+                train_writer.add_summary(train_label_acc_sum, step)
+                train_writer.add_summary(train_seg_acc_sum, step)
+                train_writer.add_summary(batch_sum, step)
 
                 printout(flog, '\tTraining Total Mean_loss: %f' % total_loss)
                 printout(flog, '\t\tTraining Label Mean_loss: %f' % total_label_loss)
@@ -291,52 +322,58 @@ def train():
             total_label_acc_per_cat = np.zeros((NUM_CATEGORIES)).astype(np.float32)
             total_seg_acc_per_cat = np.zeros((NUM_CATEGORIES)).astype(np.float32)
             total_seen_per_cat = np.zeros((NUM_CATEGORIES)).astype(np.int32)
+            total_batch=num_test_file//file_batch_size
 
-            for i in range(num_test_file):
-                cur_test_filename = os.path.join(hdf5_data_dir, test_file_list[i])
-                printout(flog, 'Loading test file ' + cur_test_filename)
+            for cur_batch in range(total_batch):
+                printout(flog, '\n epoch %d  Testing:       batch:%d/%d...' % (epoch_num,cur_batch,total_batch))
+                begid = int(cur_batch * file_batch_size)
+                endid = int((cur_batch + 1) * file_batch_size)
+                cur_test_list = []
+                for j in range(file_batch_size):
+                    cur_test_list.append(test_file_list[begid + j])
 
-                cur_data, cur_labels, cur_seg = provider.loadDataFile_with_seg(cur_test_filename)
-                cur_labels = np.squeeze(cur_labels)
+                # cur_train_list=provider.shuffle_list(cur_train_list)
+                cur_data, cur_labels, cur_seg, is_same = provider.loadDataFile_with_seg_batch(cur_test_list,
+                                                                                              file_batch_size,
+                                                                                              batch_size)
+                #
+                if is_same == False:
+                    printout(flog, 'length pts is note same as category: ' + cur_test_list[0])
+                    continue
+                cur_labels_one_hot = convert_label_to_one_hot(cur_labels, batch_size * file_batch_size)
+                feed_dict = {
+                    pointclouds_ph: cur_data[:, :, :],
+                    labels_ph: cur_labels[:],
+                    input_label_ph: cur_labels_one_hot[:, :],
+                    seg_ph: cur_seg[:, :],
+                    is_training_ph: is_training,
+                }
 
-                cur_labels_one_hot = convert_label_to_one_hot(cur_labels)
+                loss_val, label_loss_val, seg_loss_val, per_instance_label_loss_val, \
+                per_instance_seg_loss_val, label_pred_val, seg_pred_val, pred_seg_res \
+                    = sess.run([loss, label_loss, seg_loss, per_instance_label_loss, \
+                                per_instance_seg_loss, labels_pred, seg_pred, per_instance_seg_pred_res], \
+                               feed_dict=feed_dict)
 
-                num_data = len(cur_labels)
-                num_batch = num_data // batch_size
+                per_instance_part_acc = np.mean(pred_seg_res == cur_seg[:,:], axis=1)
+                average_part_acc = np.mean(per_instance_part_acc)
 
-                for j in range(num_batch):
-                    begidx = j * batch_size
-                    endidx = (j + 1) * batch_size
-                    feed_dict = {
-                            pointclouds_ph: cur_data[begidx: endidx, ...], 
-                            labels_ph: cur_labels[begidx: endidx, ...], 
-                            input_label_ph: cur_labels_one_hot[begidx: endidx, ...], 
-                            seg_ph: cur_seg[begidx: endidx, ...],
-                            is_training_ph: is_training, 
-                            }
+                total_seen += 1
+                total_loss += loss_val
+                total_label_loss += label_loss_val
+                total_seg_loss += seg_loss_val
 
-                    loss_val, label_loss_val, seg_loss_val, per_instance_label_loss_val, \
-                            per_instance_seg_loss_val, label_pred_val, seg_pred_val, pred_seg_res \
-                            = sess.run([loss, label_loss, seg_loss, per_instance_label_loss, \
-                            per_instance_seg_loss, labels_pred, seg_pred, per_instance_seg_pred_res], \
-                            feed_dict=feed_dict)
+                per_instance_label_pred = np.argmax(label_pred_val, axis=1)
+                total_label_acc += np.mean(np.float32(per_instance_label_pred == cur_labels[:]))
+                total_seg_acc += average_part_acc
 
-                    per_instance_part_acc = np.mean(pred_seg_res == cur_seg[begidx: endidx, ...], axis=1)
-                    average_part_acc = np.mean(per_instance_part_acc)
-
-                    total_seen += 1
-                    total_loss += loss_val
-                    total_label_loss += label_loss_val
-                    total_seg_loss += seg_loss_val
-                    
-                    per_instance_label_pred = np.argmax(label_pred_val, axis=1)
-                    total_label_acc += np.mean(np.float32(per_instance_label_pred == cur_labels[begidx: endidx, ...]))
-                    total_seg_acc += average_part_acc
-
-                    for shape_idx in range(begidx, endidx):
-                        total_seen_per_cat[cur_labels[shape_idx]] += 1
-                        total_label_acc_per_cat[cur_labels[shape_idx]] += np.int32(per_instance_label_pred[shape_idx-begidx] == cur_labels[shape_idx])
-                        total_seg_acc_per_cat[cur_labels[shape_idx]] += per_instance_part_acc[shape_idx - begidx]
+                begidx=0
+                endidx=batch_size*file_batch_size
+                for shape_idx in range(begidx, endidx):
+                    total_seen_per_cat[int(cur_labels[shape_idx])] += 1
+                    total_label_acc_per_cat[int(cur_labels[shape_idx])] += np.int32(
+                        per_instance_label_pred[shape_idx - begidx] == cur_labels[shape_idx])
+                    total_seg_acc_per_cat[int(cur_labels[shape_idx])] += per_instance_part_acc[shape_idx - begidx]
 
             total_loss = total_loss * 1.0 / total_seen
             total_label_loss = total_label_loss * 1.0 / total_seen
@@ -344,16 +381,18 @@ def train():
             total_label_acc = total_label_acc * 1.0 / total_seen
             total_seg_acc = total_seg_acc * 1.0 / total_seen
 
-            test_loss_sum, test_label_acc_sum, test_label_loss_sum, test_seg_loss_sum, test_seg_acc_sum = sess.run(\
-                    [total_test_loss_sum_op, label_test_acc_sum_op, label_test_loss_sum_op, seg_test_loss_sum_op, seg_test_acc_sum_op], \
-                    feed_dict={total_testing_loss_ph: total_loss, label_testing_loss_ph: total_label_loss, \
-                    seg_testing_loss_ph: total_seg_loss, label_testing_acc_ph: total_label_acc, seg_testing_acc_ph: total_seg_acc})
+            test_loss_sum, test_label_acc_sum, test_label_loss_sum, test_seg_loss_sum, test_seg_acc_sum = sess.run( \
+                [total_test_loss_sum_op, label_test_acc_sum_op, label_test_loss_sum_op, seg_test_loss_sum_op,
+                 seg_test_acc_sum_op], \
+                feed_dict={total_testing_loss_ph: total_loss, label_testing_loss_ph: total_label_loss, \
+                           seg_testing_loss_ph: total_seg_loss, label_testing_acc_ph: total_label_acc,
+                           seg_testing_acc_ph: total_seg_acc})
 
-            test_writer.add_summary(test_loss_sum, (epoch_num+1) * num_train_file-1)
-            test_writer.add_summary(test_label_loss_sum, (epoch_num+1) * num_train_file-1)
-            test_writer.add_summary(test_seg_loss_sum, (epoch_num+1) * num_train_file-1)
-            test_writer.add_summary(test_label_acc_sum, (epoch_num+1) * num_train_file-1)
-            test_writer.add_summary(test_seg_acc_sum, (epoch_num+1) * num_train_file-1)
+            test_writer.add_summary(test_loss_sum, (epoch_num + 1) * num_train_file - 1)
+            test_writer.add_summary(test_label_loss_sum, (epoch_num + 1) * num_train_file - 1)
+            test_writer.add_summary(test_seg_loss_sum, (epoch_num + 1) * num_train_file - 1)
+            test_writer.add_summary(test_label_acc_sum, (epoch_num + 1) * num_train_file - 1)
+            test_writer.add_summary(test_seg_acc_sum, (epoch_num + 1) * num_train_file - 1)
 
             printout(flog, '\tTesting Total Mean_loss: %f' % total_loss)
             printout(flog, '\t\tTesting Label Mean_loss: %f' % total_label_loss)
@@ -363,9 +402,103 @@ def train():
 
             for cat_idx in range(NUM_CATEGORIES):
                 if total_seen_per_cat[cat_idx] > 0:
-                    printout(flog, '\n\t\tCategory %s Object Number: %d' % (all_obj_cats[cat_idx][0], total_seen_per_cat[cat_idx]))
-                    printout(flog, '\t\tCategory %s Label Accuracy: %f' % (all_obj_cats[cat_idx][0], total_label_acc_per_cat[cat_idx]/total_seen_per_cat[cat_idx]))
-                    printout(flog, '\t\tCategory %s Seg Accuracy: %f' % (all_obj_cats[cat_idx][0], total_seg_acc_per_cat[cat_idx]/total_seen_per_cat[cat_idx]))
+                    printout(flog, '\n\t\tCategory %s Object Number: %d' % (
+                    all_obj_cats[cat_idx][0], total_seen_per_cat[cat_idx]))
+                    printout(flog, '\t\tCategory %s Label Accuracy: %f' % (
+                    all_obj_cats[cat_idx][0], total_label_acc_per_cat[cat_idx] / total_seen_per_cat[cat_idx]))
+                    printout(flog, '\t\tCategory %s Seg Accuracy: %f' % (
+                    all_obj_cats[cat_idx][0], total_seg_acc_per_cat[cat_idx] / total_seen_per_cat[cat_idx]))
+
+        # def eval_one_epoch(epoch_num):
+        #     is_training = False
+        #
+        #     total_loss = 0.0
+        #     total_label_loss = 0.0
+        #     total_seg_loss = 0.0
+        #     total_label_acc = 0.0
+        #     total_seg_acc = 0.0
+        #     total_seen = 0
+        #
+        #     total_label_acc_per_cat = np.zeros((NUM_CATEGORIES)).astype(np.float32)
+        #     total_seg_acc_per_cat = np.zeros((NUM_CATEGORIES)).astype(np.float32)
+        #     total_seen_per_cat = np.zeros((NUM_CATEGORIES)).astype(np.int32)
+        #
+        #     for i in range(num_test_file):
+        #         # cur_test_filename = os.path.join(hdf5_data_dir, test_file_list[i])
+        #         cur_test_filename =test_file_list[i]
+        #         printout(flog, 'Loading test file ' + cur_test_filename)
+        #
+        #         cur_data, cur_labels, cur_seg = provider.loadDataFile_with_seg(cur_test_filename,batch_size)
+        #         # cur_labels = np.squeeze(cur_labels)
+        #         # cur_labels=np.zeros(1)
+        #         cur_labels_one_hot = convert_label_to_one_hot(cur_labels,batch_size)
+        #         # print(seg_ph.shape,cur_data.shape)
+        #         num_data = batch_size
+		 #        # num_data=1
+        #         num_batch = num_data // batch_size
+        #
+        #         for j in range(num_batch):
+        #             begidx = j * batch_size
+        #             endidx = (j + 1) * batch_size
+        #             feed_dict = {
+        #                     pointclouds_ph: cur_data[begidx:endidx,:,:],
+        #                     labels_ph: cur_labels[begidx:endidx],
+        #                     input_label_ph: cur_labels_one_hot[begidx:endidx,:],
+        #                     seg_ph: cur_seg[begidx:endidx,:],
+        #                     is_training_ph: is_training,
+        #                     }
+        #
+        #             loss_val, label_loss_val, seg_loss_val, per_instance_label_loss_val, \
+        #                     per_instance_seg_loss_val, label_pred_val, seg_pred_val, pred_seg_res \
+        #                     = sess.run([loss, label_loss, seg_loss, per_instance_label_loss, \
+        #                     per_instance_seg_loss, labels_pred, seg_pred, per_instance_seg_pred_res], \
+        #                     feed_dict=feed_dict)
+        #
+        #             per_instance_part_acc = np.mean(pred_seg_res == cur_seg[begidx: endidx,:], axis=1)
+        #             average_part_acc = np.mean(per_instance_part_acc)
+        #
+        #             total_seen += 1
+        #             total_loss += loss_val
+        #             total_label_loss += label_loss_val
+        #             total_seg_loss += seg_loss_val
+        #
+        #             per_instance_label_pred = np.argmax(label_pred_val, axis=1)
+        #             total_label_acc += np.mean(np.float32(per_instance_label_pred == cur_labels[begidx: endidx, ...]))
+        #             total_seg_acc += average_part_acc
+        #
+        #             for shape_idx in range(begidx, endidx):
+        #                 total_seen_per_cat[int(cur_labels[shape_idx])] += 1
+        #                 total_label_acc_per_cat[int(cur_labels[shape_idx])] += np.int32(per_instance_label_pred[shape_idx-begidx] == cur_labels[shape_idx])
+        #                 total_seg_acc_per_cat[int(cur_labels[shape_idx])] += per_instance_part_acc[shape_idx - begidx]
+        #
+        #     total_loss = total_loss * 1.0 / total_seen
+        #     total_label_loss = total_label_loss * 1.0 / total_seen
+        #     total_seg_loss = total_seg_loss * 1.0 / total_seen
+        #     total_label_acc = total_label_acc * 1.0 / total_seen
+        #     total_seg_acc = total_seg_acc * 1.0 / total_seen
+        #
+        #     test_loss_sum, test_label_acc_sum, test_label_loss_sum, test_seg_loss_sum, test_seg_acc_sum = sess.run(\
+        #             [total_test_loss_sum_op, label_test_acc_sum_op, label_test_loss_sum_op, seg_test_loss_sum_op, seg_test_acc_sum_op], \
+        #             feed_dict={total_testing_loss_ph: total_loss, label_testing_loss_ph: total_label_loss, \
+        #             seg_testing_loss_ph: total_seg_loss, label_testing_acc_ph: total_label_acc, seg_testing_acc_ph: total_seg_acc})
+        #
+        #     test_writer.add_summary(test_loss_sum, (epoch_num+1) * num_train_file-1)
+        #     test_writer.add_summary(test_label_loss_sum, (epoch_num+1) * num_train_file-1)
+        #     test_writer.add_summary(test_seg_loss_sum, (epoch_num+1) * num_train_file-1)
+        #     test_writer.add_summary(test_label_acc_sum, (epoch_num+1) * num_train_file-1)
+        #     test_writer.add_summary(test_seg_acc_sum, (epoch_num+1) * num_train_file-1)
+        #
+        #     printout(flog, '\tTesting Total Mean_loss: %f' % total_loss)
+        #     printout(flog, '\t\tTesting Label Mean_loss: %f' % total_label_loss)
+        #     printout(flog, '\t\tTesting Label Accuracy: %f' % total_label_acc)
+        #     printout(flog, '\t\tTesting Seg Mean_loss: %f' % total_seg_loss)
+        #     printout(flog, '\t\tTesting Seg Accuracy: %f' % total_seg_acc)
+        #
+        #     for cat_idx in range(NUM_CATEGORIES):
+        #         if total_seen_per_cat[cat_idx] > 0:
+        #             printout(flog, '\n\t\tCategory %s Object Number: %d' % (all_obj_cats[cat_idx][0], total_seen_per_cat[cat_idx]))
+        #             printout(flog, '\t\tCategory %s Label Accuracy: %f' % (all_obj_cats[cat_idx][0], total_label_acc_per_cat[cat_idx]/total_seen_per_cat[cat_idx]))
+        #             printout(flog, '\t\tCategory %s Seg Accuracy: %f' % (all_obj_cats[cat_idx][0], total_seg_acc_per_cat[cat_idx]/total_seen_per_cat[cat_idx]))
 
         if not os.path.exists(MODEL_STORAGE_PATH):
             os.mkdir(MODEL_STORAGE_PATH)
@@ -377,13 +510,13 @@ def train():
             printout(flog, '\n>>> Training for the epoch %d/%d ...' % (epoch, TRAINING_EPOCHES))
 
             train_file_idx = np.arange(0, len(train_file_list))
-            np.random.shuffle(train_file_idx)
+            #np.random.shuffle(train_file_idx)
 
             train_one_epoch(train_file_idx, epoch)
 
-            if (epoch+1) % 10 == 0:
-                cp_filename = saver.save(sess, os.path.join(MODEL_STORAGE_PATH, 'epoch_' + str(epoch+1)+'.ckpt'))
-                printout(flog, 'Successfully store the checkpoint model into ' + cp_filename)
+            
+            cp_filename = saver.save(sess, os.path.join(MODEL_STORAGE_PATH, 'batch_epoch_' + str(epoch+1)+'.ckpt'))
+            printout(flog, 'Successfully store the checkpoint model into ' + cp_filename)
 
             flog.flush()
 
@@ -391,3 +524,6 @@ def train():
 
 if __name__=='__main__':
     train()
+
+
+
